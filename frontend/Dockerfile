@@ -19,6 +19,7 @@ RUN npm run build
 
 # Default environment configuration
 ENV PORT=5173
+ENV VITE_DEV_PROXY_TARGET=http://backend:8000
 EXPOSE 5173
 
 # Startup command: binds to 0.0.0.0 on port 5173 to align with Compose ports: 5173:5173
