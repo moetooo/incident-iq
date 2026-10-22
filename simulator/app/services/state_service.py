@@ -55,12 +55,16 @@ class SimulatorStateService:
             )
         ]
 
-        self._evidence = [
+        self._evidence = self._create_healthy_evidence(now_iso)
+
+    def _create_healthy_evidence(self, timestamp_iso: str) -> List[EvidenceItem]:
+        """Generates evidence items for normal healthy state."""
+        return [
             EvidenceItem(
                 id="ev_normal_state",
                 type=EvidenceType.STATE.value,
                 source=settings.SERVICE_NAME,
-                timestamp=now_iso,
+                timestamp=timestamp_iso,
                 summary="Service payment-api is fully healthy and operational",
                 details={
                     "status": "UP",
@@ -77,7 +81,7 @@ class SimulatorStateService:
                 id="ev_normal_metrics",
                 type=EvidenceType.METRIC.value,
                 source=settings.SERVICE_NAME,
-                timestamp=now_iso,
+                timestamp=timestamp_iso,
                 summary="Payment API metrics within normal operating limits",
                 details={
                     "error_rate_pct": 0.0,
@@ -92,7 +96,7 @@ class SimulatorStateService:
                 id="ev_normal_log",
                 type=EvidenceType.LOG.value,
                 source=settings.SERVICE_NAME,
-                timestamp=now_iso,
+                timestamp=timestamp_iso,
                 summary="Payment transactions processed successfully",
                 details={
                     "level": "INFO",
@@ -103,6 +107,16 @@ class SimulatorStateService:
                 }
             )
         ]
+
+    def _sync_deployment_statuses(self) -> None:
+        """Synchronizes deployment record statuses with the active version."""
+        for d in self._deployments:
+            if d.version == self._current_version:
+                d.status = "active"
+            elif d.id == "dep_v241_faulty":
+                d.status = "rolled_back"
+            else:
+                d.status = "superseded"
 
     def get_current_scenario(self) -> ScenarioId:
         with self._lock:
@@ -128,7 +142,10 @@ class SimulatorStateService:
             self._activated_at = now_iso
 
             if scenario_id == ScenarioId.NORMAL:
-                self._initialize_healthy_state()
+                self._current_version = settings.SIMULATOR_VERSION
+                self._error_count = 0
+                self._evidence = self._create_healthy_evidence(now_iso)
+                self._sync_deployment_statuses()
                 return ScenarioStatus(
                     scenario_id=scenario_id,
                     title="Healthy Payment API",
@@ -142,6 +159,7 @@ class SimulatorStateService:
             elif scenario_id == ScenarioId.DATABASE_FAILURE:
                 self._current_version = settings.SIMULATOR_VERSION
                 self._error_count = 48
+                self._sync_deployment_statuses()
                 self._evidence = [
                     EvidenceItem(
                         id="ev_db_pool_exhausted",
@@ -210,6 +228,7 @@ class SimulatorStateService:
             elif scenario_id == ScenarioId.PAYMENT_TIMEOUT:
                 self._current_version = settings.SIMULATOR_VERSION
                 self._error_count = 35
+                self._sync_deployment_statuses()
                 self._evidence = [
                     EvidenceItem(
                         id="ev_payment_latency_metric",
@@ -295,6 +314,7 @@ class SimulatorStateService:
                         changelog="Release v2.4.1: Refactored payment token validator and security header parser"
                     )
                     self._deployments.insert(0, bad_deploy)
+                self._sync_deployment_statuses()
 
                 self._evidence = [
                     EvidenceItem(
