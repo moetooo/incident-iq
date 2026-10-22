@@ -15,9 +15,11 @@ import {
 
 export default function AIInvestigationPanel({
   rcaData,
+  evidence = [],
   isInvestigating = false,
   investigationError = null,
-  onRunInvestigation
+  onRunInvestigation,
+  onSelectEvidence
 }) {
   const hypotheses = Array.isArray(rcaData?.root_cause_hypotheses)
     ? rcaData.root_cause_hypotheses
@@ -37,36 +39,57 @@ export default function AIInvestigationPanel({
   const isCompleted = rcaData?.status === 'completed';
   const llmUsed = !!rcaData?.llm_used;
 
+  const handleEvidenceClick = (evId, e) => {
+    // Permit standard modifier clicks (middle-click, cmd/ctrl-click) for new tabs
+    if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) {
+      return;
+    }
+    e.preventDefault();
+    if (typeof window !== 'undefined' && window.location.hash !== `#${evId}`) {
+      window.history.pushState(null, '', `#${evId}`);
+    }
+    if (onSelectEvidence) {
+      onSelectEvidence(evId);
+    }
+  };
+
+  const getConfidenceColor = (conf) => {
+    if (conf >= 0.8) return 'bg-emerald-500';
+    if (conf >= 0.5) return 'bg-accent';
+    return 'bg-amber-500';
+  };
+
   return (
-    <div className="bg-surface border border-surface-border rounded-md p-4 shadow-sm" data-testid="ai-investigation-panel">
+    <div className="bg-surface border border-surface-border rounded-md p-3.5 sm:p-4 shadow-sm" data-testid="ai-investigation-panel">
       {/* Panel Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-surface-border">
-        <div className="flex items-center gap-2.5">
-          <div className="p-1.5 rounded-md bg-accent-subtle border border-accent-border text-accent">
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="p-1.5 rounded-md bg-accent-subtle border border-accent-border text-accent shrink-0">
             <Sparkles className="w-4 h-4" />
           </div>
-          <div>
-            <h3 className="text-sm font-semibold text-text-main flex items-center gap-2">
+          <div className="min-w-0">
+            <h3 className="text-sm font-semibold text-text-main flex flex-wrap items-center gap-2">
               <span>Root-Cause Analysis (RCA)</span>
               {isCompleted && (
-                <span className="text-[10px] font-mono font-medium px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20">
+                <span className="text-[10px] font-mono font-medium px-1.5 py-0.2 rounded bg-emerald-50 dark:bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-500/20 inline-flex items-center gap-1">
+                  <CheckCircle2 className="w-3 h-3 text-emerald-500" />
                   Diagnosis Complete
                 </span>
               )}
             </h3>
-            <p className="text-[11px] text-text-muted">
+            <p className="text-[11px] text-text-muted truncate">
               Causal hypothesis generation and telemetry correlation.
             </p>
           </div>
         </div>
 
         {/* Engine mode pill & trigger button */}
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2 self-start sm:self-auto shrink-0">
           {rcaData && (
             <div
-              className="flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-mono border bg-surface-elevated text-text-sub border-surface-border"
+              className="flex items-center gap-1.5 px-2 py-1 rounded text-[11px] font-mono border bg-surface-elevated text-text-sub border-surface-border"
             >
-              <Cpu className="w-3 h-3 text-text-muted" />
+              <Cpu className="w-3 h-3 text-text-muted shrink-0" />
               <span>{llmUsed ? 'LLM Inference Active' : 'Deterministic Correlation'}</span>
             </div>
           )}
@@ -74,7 +97,7 @@ export default function AIInvestigationPanel({
           <button
             onClick={onRunInvestigation}
             disabled={isInvestigating}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-accent hover:bg-accent-hover text-white disabled:opacity-50 transition-colors"
+            className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium bg-accent hover:bg-accent-hover text-white disabled:opacity-50 transition-colors shadow-xs"
             data-testid="run-investigation-btn"
           >
             <RefreshCw className={`w-3.5 h-3.5 ${isInvestigating ? 'animate-spin' : ''}`} />
@@ -90,7 +113,7 @@ export default function AIInvestigationPanel({
           <div className="py-10 text-center bg-surface-elevated rounded-md border border-surface-border">
             <BrainCircuit className="w-7 h-7 text-accent mx-auto animate-pulse mb-2" />
             <h4 className="text-xs font-semibold text-text-main">Analyzing Service Telemetry</h4>
-            <p className="text-[11px] text-text-muted mt-0.5 max-w-sm mx-auto">
+            <p className="text-[11px] text-text-muted mt-0.5 max-w-sm mx-auto px-4">
               Correlating error traces, metric anomalies, and deployment records...
             </p>
             <div className="w-36 h-1 bg-surface-border rounded-full mx-auto mt-3 overflow-hidden">
@@ -104,12 +127,12 @@ export default function AIInvestigationPanel({
           <div className="p-3.5 rounded-md bg-rose-50 dark:bg-rose-500/10 border border-rose-200 dark:border-rose-500/25 text-rose-700 dark:text-rose-400">
             <div className="flex items-start gap-2.5">
               <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5 text-rose-600 dark:text-rose-400" />
-              <div>
+              <div className="min-w-0 flex-1">
                 <h4 className="text-xs font-semibold">Investigation Failed</h4>
-                <p className="text-[11px] mt-0.5 opacity-90">{investigationError}</p>
+                <p className="text-[11px] mt-0.5 opacity-90 break-words">{investigationError}</p>
                 <button
                   onClick={onRunInvestigation}
-                  className="mt-2 px-2 py-0.5 rounded bg-surface border border-surface-border text-text-main text-[11px] font-medium hover:bg-surface-elevated transition-colors"
+                  className="mt-2 px-2.5 py-1 rounded bg-surface border border-surface-border text-text-main text-[11px] font-medium hover:bg-surface-elevated transition-colors"
                 >
                   Retry Investigation
                 </button>
@@ -120,7 +143,7 @@ export default function AIInvestigationPanel({
 
         {/* State 3: Not Started */}
         {!isInvestigating && !investigationError && !rcaData && (
-          <div className="py-8 text-center bg-surface-elevated rounded-md border border-surface-border">
+          <div className="py-8 text-center bg-surface-elevated rounded-md border border-surface-border px-4">
             <BrainCircuit className="w-6 h-6 text-text-muted mx-auto mb-1.5" />
             <h4 className="text-xs font-semibold text-text-sub">No Diagnosis Formed Yet</h4>
             <p className="text-[11px] text-text-muted mt-0.5 max-w-xs mx-auto">
@@ -137,16 +160,16 @@ export default function AIInvestigationPanel({
               <div className="p-3.5 rounded-md bg-surface-elevated border border-surface-border">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-surface-border">
                   <span className="text-[11px] font-mono uppercase font-semibold text-text-sub tracking-wider flex items-center gap-1.5">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
                     Leading Root-Cause Hypothesis
                   </span>
 
                   {/* Confidence meter */}
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 self-start sm:self-auto">
                     <span className="text-[11px] text-text-muted">Confidence:</span>
-                    <div className="w-20 bg-surface border border-surface-border rounded-full h-1.5 overflow-hidden">
+                    <div className="w-20 sm:w-28 bg-surface border border-surface-border rounded-full h-1.5 overflow-hidden">
                       <div
-                        className="bg-accent h-full rounded-full"
+                        className={`${getConfidenceColor(primaryHypothesis.confidence || 0)} h-full rounded-full transition-all duration-500 ease-out`}
                         style={{ width: `${Math.round((primaryHypothesis.confidence || 0) * 100)}%` }}
                       />
                     </div>
@@ -157,28 +180,51 @@ export default function AIInvestigationPanel({
                 </div>
 
                 <div className="mt-2.5">
-                  <h4 className="text-sm font-bold text-text-main font-mono">
+                  <h4 className="text-sm sm:text-base font-bold text-text-main font-mono break-words">
                     {primaryHypothesis.cause}
                   </h4>
-                  <p className="text-xs text-text-sub mt-1 leading-relaxed">
+                  <p className="text-xs text-text-sub mt-1 leading-relaxed break-words">
                     {primaryHypothesis.explanation}
                   </p>
                 </div>
 
                 {/* Supporting evidence references */}
                 {primaryHypothesis.evidence_ids && primaryHypothesis.evidence_ids.length > 0 && (
-                  <div className="mt-3 pt-2.5 border-t border-surface-border flex flex-wrap items-center gap-1.5">
-                    <span className="text-[11px] text-text-muted font-mono">Supporting Evidence:</span>
-                    {primaryHypothesis.evidence_ids.map((evId) => (
-                      <a
-                        key={evId}
-                        href={`#${evId}`}
-                        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-mono bg-surface text-text-main border border-surface-border hover:border-accent transition-colors"
-                      >
-                        <span>{evId}</span>
-                        <ExternalLink className="w-2.5 h-2.5 text-text-muted" />
-                      </a>
-                    ))}
+                  <div className="mt-3 pt-2.5 border-t border-surface-border space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-text-muted font-mono font-semibold">
+                        Supporting Evidence ({primaryHypothesis.evidence_ids.length}):
+                      </span>
+                      <span className="text-[10px] text-text-muted font-mono hidden sm:inline">
+                        Click evidence ID to view timeline trace
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {primaryHypothesis.evidence_ids.map((evId) => {
+                        const matched = Array.isArray(evidence) ? evidence.find(e => e.id === evId) : null;
+                        const evType = matched?.type;
+                        const tooltip = matched?.summary ? `${evId}: ${matched.summary}` : `Navigate to evidence ${evId}`;
+
+                        return (
+                          <a
+                            key={evId}
+                            href={`#${evId}`}
+                            onClick={(e) => handleEvidenceClick(evId, e)}
+                            title={tooltip}
+                            className="group inline-flex items-center gap-1.5 px-2 py-1 rounded text-xs font-mono bg-surface hover:bg-surface-elevated text-text-main border border-surface-border hover:border-accent hover:text-accent shadow-xs transition-all duration-150 cursor-pointer focus:outline-none focus:ring-1 focus:ring-accent"
+                            data-testid={`evidence-link-${evId}`}
+                          >
+                            {evType && (
+                              <span className="text-[9px] uppercase px-1 py-0.2 rounded bg-surface-elevated text-text-muted font-semibold group-hover:text-accent">
+                                {evType}
+                              </span>
+                            )}
+                            <span className="font-semibold break-all">{evId}</span>
+                            <ExternalLink className="w-2.5 h-2.5 text-text-muted group-hover:text-accent shrink-0 transition-colors" />
+                          </a>
+                        );
+                      })}
+                    </div>
                   </div>
                 )}
               </div>
@@ -190,27 +236,47 @@ export default function AIInvestigationPanel({
             {alternativeHypotheses.length > 0 && (
               <div className="space-y-1.5">
                 <h4 className="text-[11px] font-mono uppercase text-text-muted tracking-wider flex items-center gap-1">
-                  <Layers className="w-3 h-3 text-text-muted" />
+                  <Layers className="w-3 h-3 text-text-muted shrink-0" />
                   Alternative Hypotheses Evaluated ({alternativeHypotheses.length})
                 </h4>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2 sm:gap-2.5">
                   {alternativeHypotheses.map((alt, idx) => {
                     const causeText = typeof alt === 'string' ? alt : (alt?.cause || alt?.title || 'Alternative Hypothesis');
                     const confidence = typeof alt === 'object' && alt?.confidence !== undefined ? alt.confidence : null;
                     const explanation = typeof alt === 'object' ? alt?.explanation : null;
+                    const altEvidenceIds = typeof alt === 'object' && Array.isArray(alt?.evidence_ids) ? alt.evidence_ids : [];
 
                     return (
-                      <div key={idx} className="p-2.5 bg-surface-elevated border border-surface-border rounded-md">
-                        <div className="flex items-center justify-between text-xs mb-0.5">
-                          <span className="font-semibold text-text-main font-mono text-[11px]">{causeText}</span>
-                          {confidence !== null && (
-                            <span className="text-[10px] font-mono text-text-muted">
-                              {Math.round(confidence * 100)}%
-                            </span>
+                      <div key={idx} className="p-2.5 bg-surface-elevated border border-surface-border rounded-md flex flex-col justify-between">
+                        <div>
+                          <div className="flex items-center justify-between text-xs mb-1 gap-2">
+                            <span className="font-semibold text-text-main font-mono text-[11px] break-words flex-1">{causeText}</span>
+                            {confidence !== null && (
+                              <span className="text-[10px] font-mono text-text-muted shrink-0 bg-surface px-1.5 py-0.2 rounded border border-surface-border">
+                                {Math.round(confidence * 100)}%
+                              </span>
+                            )}
+                          </div>
+                          {explanation && (
+                            <p className="text-[11px] text-text-muted line-clamp-2 break-words leading-relaxed">{explanation}</p>
                           )}
                         </div>
-                        {explanation && (
-                          <p className="text-[11px] text-text-muted line-clamp-2">{explanation}</p>
+
+                        {altEvidenceIds.length > 0 && (
+                          <div className="mt-2 pt-1.5 border-t border-surface-border/60 flex flex-wrap items-center gap-1">
+                            <span className="text-[10px] text-text-muted font-mono">Evidence:</span>
+                            {altEvidenceIds.map((altEvId) => (
+                              <a
+                                key={altEvId}
+                                href={`#${altEvId}`}
+                                onClick={(e) => handleEvidenceClick(altEvId, e)}
+                                data-testid={`evidence-link-${altEvId}`}
+                                className="inline-flex items-center gap-0.5 px-1 py-0.2 rounded text-[10px] font-mono bg-surface text-text-sub hover:text-accent border border-surface-border hover:border-accent transition-colors"
+                              >
+                                <span>{altEvId}</span>
+                              </a>
+                            ))}
+                          </div>
                         )}
                       </div>
                     );
@@ -223,17 +289,17 @@ export default function AIInvestigationPanel({
             {recommendations.length > 0 && (
               <div className="space-y-1.5">
                 <h4 className="text-[11px] font-mono uppercase text-text-muted tracking-wider flex items-center gap-1">
-                  <Lightbulb className="w-3 h-3 text-amber-500" />
+                  <Lightbulb className="w-3 h-3 text-amber-500 shrink-0" />
                   Recommended Operational Validations
                 </h4>
-                <div className="space-y-1">
+                <div className="space-y-1.5">
                   {recommendations.map((rec, idx) => (
                     <div
                       key={idx}
-                      className="flex items-start gap-2 p-2 rounded-md bg-surface-elevated border border-surface-border text-xs text-text-sub"
+                      className="flex items-start gap-2 p-2 sm:p-2.5 rounded-md bg-surface-elevated border border-surface-border text-xs text-text-sub"
                     >
                       <FileCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                      <span className="text-[11px]">
+                      <span className="text-[11px] leading-relaxed break-words flex-1">
                         {typeof rec === 'string' ? rec : (rec?.check || rec?.title || rec?.description || String(rec))}
                       </span>
                     </div>
@@ -243,9 +309,9 @@ export default function AIInvestigationPanel({
             )}
 
             {/* Understated Disclaimer */}
-            <div className="p-2 rounded-md bg-surface-elevated border border-surface-border text-[10px] text-text-muted flex items-center gap-1.5">
+            <div className="p-2 sm:p-2.5 rounded-md bg-surface-elevated border border-surface-border text-[10px] text-text-muted flex items-center gap-1.5">
               <ShieldAlert className="w-3.5 h-3.5 text-text-muted shrink-0" />
-              <span>
+              <span className="leading-relaxed">
                 Confidence scores are automated heuristic estimates. Validate against service health metrics before initiating recovery.
               </span>
             </div>

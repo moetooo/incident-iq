@@ -84,3 +84,46 @@
 ::-webkit-scrollbar-thumb:hover {
   filter: brightness(1.2);
 }
+
+/* Restrained transitions for interactive states & theme switching */
+body, .bg-surface, .bg-app, .bg-surface-elevated, .border-surface-border {
+  transition: background-color 150ms ease, border-color 150ms ease, color 150ms ease;
+}
+
+/* Hide scrollbars utility for compact tab navigation */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Target evidence pulse animation for smooth visual feedback */
+@keyframes evidence-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(96, 165, 250, 0);
+  }
+  50% {
+    box-shadow: 0 0 0 4px rgba(96, 165, 250, 0.4);
+  }
+}
+
+.evidence-target-highlight {
+  animation: evidence-pulse 1.8s ease-in-out 2;
+}
+
+/* Full Accessible Reduced-Motion Support */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .evidence-target-highlight {
+    animation: none !important;
+  }
+}

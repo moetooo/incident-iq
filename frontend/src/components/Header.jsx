@@ -22,14 +22,14 @@ export default function Header({
   return (
     <header className="border-b border-surface-border bg-surface sticky top-0 z-30 transition-colors">
       {/* Slim, understated Demo Environment Notice */}
-      <div className="bg-surface-elevated border-b border-surface-border px-4 py-1 text-[11px] font-mono text-text-muted flex items-center justify-between">
+      <div className="bg-surface-elevated border-b border-surface-border px-4 py-1 text-[11px] font-mono text-text-muted flex flex-col sm:flex-row sm:items-center sm:justify-between gap-1">
         <div className="flex items-center gap-1.5">
-          <FlaskConical className="w-3.5 h-3.5 text-amber-500" />
-          <span>
-            <strong className="text-text-sub font-semibold">SIMULATED ENVIRONMENT:</strong> Telemetry and remediation actions run in an isolated sandbox.
+          <FlaskConical className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+          <span className="truncate sm:overflow-visible">
+            <strong className="text-text-sub font-semibold">SIMULATED ENVIRONMENT:</strong> Sandbox telemetry stream active.
           </span>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
           <span className="text-[10px] text-text-muted">Simulator Standby</span>
         </div>
@@ -45,14 +45,14 @@ export default function Header({
             <h1 className="text-sm font-bold tracking-tight text-text-main flex items-center">
               Incident<span className="text-accent">IQ</span>
             </h1>
-            <span className="text-[10px] uppercase font-mono px-1.5 py-0.2 rounded bg-surface-elevated text-text-muted border border-surface-border">
+            <span className="text-[10px] uppercase font-mono px-1.5 py-0.2 rounded bg-surface-elevated text-text-muted border border-surface-border hidden sm:inline">
               Observability
             </span>
           </div>
         </div>
 
         {/* Right actions, theme toggle, and status */}
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5 sm:gap-2">
           {/* Backend Health Badge */}
           <div
             className={`hidden md:flex items-center gap-1.5 px-2 py-0.5 rounded text-[11px] font-mono border ${
@@ -95,8 +95,9 @@ export default function Header({
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-surface-elevated hover:bg-surface-hover text-text-main border border-surface-border transition-colors"
             data-testid="trigger-scenario-modal-btn"
           >
-            <FlaskConical className="w-3.5 h-3.5 text-amber-500" />
-            <span>Simulate Scenario</span>
+            <FlaskConical className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+            <span className="hidden sm:inline">Simulate Scenario</span>
+            <span className="sm:hidden">Simulate</span>
           </button>
 
           {/* New Incident Button */}
@@ -105,8 +106,9 @@ export default function Header({
             className="flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium bg-accent hover:bg-accent-hover text-white transition-colors"
             data-testid="create-incident-modal-btn"
           >
-            <Plus className="w-3.5 h-3.5" />
+            <Plus className="w-3.5 h-3.5 shrink-0" />
             <span className="hidden sm:inline">Report Incident</span>
+            <span className="sm:hidden">Report</span>
           </button>
         </div>
       </div>

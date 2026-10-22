@@ -57,11 +57,11 @@ export default function IncidentList({
             />
           </div>
 
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 w-full sm:w-auto">
             <select
               value={severityFilter}
               onChange={(e) => setSeverityFilter(e.target.value)}
-              className="px-2 py-1.5 rounded-md bg-surface-elevated border border-surface-border text-text-main text-xs focus:outline-none focus:border-accent"
+              className="flex-1 sm:flex-initial min-w-0 px-2 py-1.5 rounded-md bg-surface-elevated border border-surface-border text-text-main text-xs focus:outline-none focus:border-accent"
               data-testid="filter-severity-select"
             >
               <option value="all">All Severities</option>
@@ -74,7 +74,7 @@ export default function IncidentList({
             <select
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
-              className="px-2 py-1.5 rounded-md bg-surface-elevated border border-surface-border text-text-main text-xs focus:outline-none focus:border-accent"
+              className="flex-1 sm:flex-initial min-w-0 px-2 py-1.5 rounded-md bg-surface-elevated border border-surface-border text-text-main text-xs focus:outline-none focus:border-accent"
               data-testid="filter-status-select"
             >
               <option value="all">All Statuses</option>

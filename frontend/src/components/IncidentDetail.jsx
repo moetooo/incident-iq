@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   ArrowLeft,
   Clock,
@@ -29,6 +29,49 @@ export default function IncidentDetail({
   onRejectRemediation,
 }) {
   const [activeTab, setActiveTab] = useState('rca'); // 'rca' | 'evidence' | 'remediation'
+  const [selectedEvidenceId, setSelectedEvidenceId] = useState(null);
+
+  // Synchronize activeTab and selectedEvidenceId with browser URL hash & history
+  useEffect(() => {
+    const syncFromHash = () => {
+      if (typeof window === 'undefined') return;
+      const hash = window.location.hash.replace(/^#/, '');
+      if (hash) {
+        if (hash.startsWith('ev_') || (Array.isArray(evidence) && evidence.some(e => e.id === hash))) {
+          setActiveTab('evidence');
+          setSelectedEvidenceId(hash);
+        } else if (hash === 'rca' || hash === 'evidence' || hash === 'remediation') {
+          setActiveTab(hash);
+          setSelectedEvidenceId(null);
+        }
+      } else {
+        setSelectedEvidenceId(null);
+      }
+    };
+
+    syncFromHash();
+    window.addEventListener('hashchange', syncFromHash);
+    window.addEventListener('popstate', syncFromHash);
+    return () => {
+      window.removeEventListener('hashchange', syncFromHash);
+      window.removeEventListener('popstate', syncFromHash);
+    };
+  }, [evidence]);
+
+  const handleSelectEvidence = (evId) => {
+    setActiveTab('evidence');
+    setSelectedEvidenceId(evId);
+  };
+
+  const handleTabChange = (tabKey) => {
+    setActiveTab(tabKey);
+    if (tabKey !== 'evidence') {
+      setSelectedEvidenceId(null);
+      if (typeof window !== 'undefined' && window.location.hash && window.location.hash.startsWith('#ev_')) {
+        window.history.pushState(null, '', window.location.pathname + window.location.search);
+      }
+    }
+  };
 
   if (isLoading) {
     return (
@@ -66,14 +109,15 @@ export default function IncidentDetail({
   return (
     <div className="space-y-4" data-testid="incident-detail">
       {/* Top Incident Summary Panel */}
-      <div className="bg-surface border border-surface-border rounded-md p-4 shadow-sm">
+      <div className="bg-surface border border-surface-border rounded-md p-3.5 sm:p-4 shadow-sm">
         <div className="flex flex-col md:flex-row md:items-start justify-between gap-3 pb-3 border-b border-surface-border">
           <div className="space-y-1.5 flex-1 min-w-0">
             <div className="flex flex-wrap items-center gap-1.5">
               {onBack && (
                 <button
                   onClick={onBack}
-                  className="flex items-center gap-1 text-xs font-medium text-text-muted hover:text-text-main mr-1 bg-surface-elevated px-2 py-0.5 rounded-md border border-surface-border transition-colors"
+                  className="flex items-center gap-1 text-xs font-medium text-text-muted hover:text-text-main mr-1 bg-surface-elevated px-2 py-0.5 rounded-md border border-surface-border transition-colors lg:hidden"
+                  title="Return to incident list"
                 >
                   <ArrowLeft className="w-3 h-3" />
                   <span>List</span>
@@ -89,12 +133,12 @@ export default function IncidentDetail({
               </span>
             </div>
 
-            <h2 className="text-base font-semibold text-text-main tracking-tight">
+            <h2 className="text-base sm:text-lg font-semibold text-text-main tracking-tight break-words">
               {incident.title}
             </h2>
 
             {incident.description && (
-              <p className="text-xs text-text-sub max-w-3xl leading-relaxed">
+              <p className="text-xs text-text-sub max-w-3xl leading-relaxed break-words">
                 {incident.description}
               </p>
             )}
@@ -113,47 +157,50 @@ export default function IncidentDetail({
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-1.5 mt-3 text-xs font-medium">
+        <div className="flex items-center gap-1 sm:gap-1.5 mt-3 text-xs font-medium overflow-x-auto no-scrollbar pb-1 sm:pb-0">
           <button
-            onClick={() => setActiveTab('rca')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border transition-colors ${
+            onClick={() => handleTabChange('rca')}
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md border transition-colors shrink-0 ${
               activeTab === 'rca'
                 ? 'bg-accent-subtle text-accent border-accent-border font-semibold'
                 : 'text-text-muted hover:text-text-main border-transparent hover:bg-surface-elevated'
             }`}
             data-testid="tab-rca-btn"
           >
-            <Sparkles className="w-3.5 h-3.5" />
-            <span>AI Root-Cause Diagnosis</span>
+            <Sparkles className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden sm:inline">AI Root-Cause Diagnosis</span>
+            <span className="sm:hidden">RCA</span>
             {rcaData?.status === 'completed' && (
               <span className="w-1.5 h-1.5 rounded-full bg-accent" />
             )}
           </button>
 
           <button
-            onClick={() => setActiveTab('evidence')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border transition-colors ${
+            onClick={() => handleTabChange('evidence')}
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md border transition-colors shrink-0 ${
               activeTab === 'evidence'
                 ? 'bg-accent-subtle text-accent border-accent-border font-semibold'
                 : 'text-text-muted hover:text-text-main border-transparent hover:bg-surface-elevated'
             }`}
             data-testid="tab-evidence-btn"
           >
-            <FileText className="w-3.5 h-3.5" />
-            <span>Telemetry & Evidence ({evidence?.length || 0})</span>
+            <FileText className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden sm:inline">Telemetry & Evidence ({evidence?.length || 0})</span>
+            <span className="sm:hidden">Evidence ({evidence?.length || 0})</span>
           </button>
 
           <button
-            onClick={() => setActiveTab('remediation')}
-            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-md border transition-colors ${
+            onClick={() => handleTabChange('remediation')}
+            className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-md border transition-colors shrink-0 ${
               activeTab === 'remediation'
                 ? 'bg-accent-subtle text-accent border-accent-border font-semibold'
                 : 'text-text-muted hover:text-text-main border-transparent hover:bg-surface-elevated'
             }`}
             data-testid="tab-remediation-btn"
           >
-            <Wrench className="w-3.5 h-3.5" />
-            <span>Remediation Workflow</span>
+            <Wrench className="w-3.5 h-3.5 shrink-0" />
+            <span className="hidden sm:inline">Remediation Workflow</span>
+            <span className="sm:hidden">Remediation</span>
             {remediation?.status === 'pending_approval' && (
               <span className="w-1.5 h-1.5 rounded-full bg-amber-500" />
             )}
@@ -166,9 +213,11 @@ export default function IncidentDetail({
         {activeTab === 'rca' && (
           <AIInvestigationPanel
             rcaData={rcaData}
+            evidence={evidence}
             isInvestigating={isInvestigating}
             investigationError={investigationError}
             onRunInvestigation={onRunInvestigation}
+            onSelectEvidence={handleSelectEvidence}
           />
         )}
 
@@ -177,6 +226,8 @@ export default function IncidentDetail({
             evidence={evidence}
             isLoading={isInvestigating}
             onRunInvestigation={onRunInvestigation}
+            selectedEvidenceId={selectedEvidenceId}
+            onNavigateTab={handleTabChange}
           />
         )}
 

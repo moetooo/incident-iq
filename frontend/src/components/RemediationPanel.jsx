@@ -205,11 +205,11 @@ export default function RemediationPanel({
             </div>
 
             {/* Decision Controls */}
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-surface-border">
+            <div className="flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-2 pt-2 border-t border-surface-border">
               <button
                 onClick={handleRejectClick}
                 disabled={isSubmitting}
-                className="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium bg-surface hover:bg-surface-hover text-rose-600 dark:text-rose-400 border border-surface-border transition-colors disabled:opacity-50"
+                className="flex items-center justify-center gap-1.5 px-3 py-1.5 sm:py-1 rounded-md text-xs font-medium bg-surface hover:bg-surface-hover text-rose-600 dark:text-rose-400 border border-surface-border transition-colors disabled:opacity-50"
                 data-testid="reject-remediation-btn"
               >
                 <XCircle className="w-3.5 h-3.5" />
@@ -219,7 +219,7 @@ export default function RemediationPanel({
               <button
                 onClick={handleApproveClick}
                 disabled={!confirmedSafe || isSubmitting}
-                className="flex items-center gap-1.5 px-3.5 py-1 rounded-md text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="flex items-center justify-center gap-1.5 px-3.5 py-1.5 sm:py-1 rounded-md text-xs font-medium bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
                 data-testid="approve-remediation-btn"
               >
                 {isSubmitting ? (
@@ -267,7 +267,7 @@ export default function RemediationPanel({
             {/* Execution summary result */}
             <div className="bg-surface rounded-md p-2.5 font-mono text-xs text-text-sub border border-surface-border">
               <p className="text-text-muted text-[10px] mb-1 uppercase">Audit Trail Result:</p>
-              <pre className="text-text-main text-[11px]">
+              <pre className="text-text-main text-[11px] whitespace-pre-wrap break-all overflow-x-auto">
                 {remediation.result
                   ? JSON.stringify(remediation.result, null, 2)
                   : `Remediation action registered with status: ${remediation.status}.`}

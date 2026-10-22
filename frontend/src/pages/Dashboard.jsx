@@ -405,14 +405,22 @@ export default function Dashboard() {
             <IncidentList
               incidents={incidents}
               selectedIncidentId={selectedIncidentId}
-              onSelectIncident={(id) => setSelectedIncidentId(id)}
+              onSelectIncident={(id) => {
+                setSelectedIncidentId(id);
+                if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+                  const el = document.getElementById('incident-detail-section');
+                  if (el) {
+                    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }
+                }
+              }}
               isLoading={isLoadingList}
               onTriggerDemo={() => setIsDemoModalOpen(true)}
             />
           </div>
 
           {/* Incident Detail Column */}
-          <div className="lg:col-span-7">
+          <div id="incident-detail-section" className="lg:col-span-7">
             <IncidentDetail
               incident={selectedIncident}
               evidence={evidence}
@@ -422,6 +430,12 @@ export default function Dashboard() {
               isInvestigating={isInvestigating}
               investigationError={investigationError}
               isSubmittingRemediation={isSubmittingRemediation}
+              onBack={() => {
+                setSelectedIncidentId(null);
+                if (typeof window !== 'undefined') {
+                  window.scrollTo({ top: 0, behavior: 'smooth' });
+                }
+              }}
               onRunInvestigation={handleRunInvestigation}
               onProposeRemediation={handleProposeRemediation}
               onApproveRemediation={handleApproveRemediation}
