@@ -21,4 +21,3 @@ class EvidenceItem(BaseModel):
 
 class EvidenceListResponse(BaseModel):
     items: List[EvidenceItem]
-    total: int

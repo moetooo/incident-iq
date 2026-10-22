@@ -21,7 +21,7 @@ def get_evidence(
         evidence_type=type,
         limit=limit
     )
-    return EvidenceListResponse(items=items, total=len(items))
+    return EvidenceListResponse(items=items)
 
 
 @router.get("/deployments", response_model=DeploymentListResponse)

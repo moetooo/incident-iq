@@ -141,7 +141,7 @@ class SimulatorStateService:
 
             elif scenario_id == ScenarioId.DATABASE_FAILURE:
                 self._current_version = settings.SIMULATOR_VERSION
-                self._error_count += 48
+                self._error_count = 48
                 self._evidence = [
                     EvidenceItem(
                         id="ev_db_pool_exhausted",
@@ -209,7 +209,7 @@ class SimulatorStateService:
 
             elif scenario_id == ScenarioId.PAYMENT_TIMEOUT:
                 self._current_version = settings.SIMULATOR_VERSION
-                self._error_count += 35
+                self._error_count = 35
                 self._evidence = [
                     EvidenceItem(
                         id="ev_payment_latency_metric",
@@ -277,19 +277,24 @@ class SimulatorStateService:
 
             elif scenario_id == ScenarioId.BAD_DEPLOYMENT:
                 self._current_version = settings.BAD_DEPLOYMENT_VERSION
-                self._error_count += 62
+                self._error_count = 62
                 
-                bad_deploy = DeploymentItem(
-                    id="dep_v241_faulty",
-                    version=settings.BAD_DEPLOYMENT_VERSION,
-                    service=settings.SERVICE_NAME,
-                    deployed_at=now_iso,
-                    deployed_by="ci/cd-pipeline",
-                    status="active",
-                    commit_sha="8f92a11",
-                    changelog="Release v2.4.1: Refactored payment token validator and security header parser"
+                bad_deploy = next(
+                    (d for d in self._deployments if d.id == "dep_v241_faulty"),
+                    None
                 )
-                self._deployments.insert(0, bad_deploy)
+                if bad_deploy is None:
+                    bad_deploy = DeploymentItem(
+                        id="dep_v241_faulty",
+                        version=settings.BAD_DEPLOYMENT_VERSION,
+                        service=settings.SERVICE_NAME,
+                        deployed_at=now_iso,
+                        deployed_by="ci/cd-pipeline",
+                        status="active",
+                        commit_sha="8f92a11",
+                        changelog="Release v2.4.1: Refactored payment token validator and security header parser"
+                    )
+                    self._deployments.insert(0, bad_deploy)
 
                 self._evidence = [
                     EvidenceItem(

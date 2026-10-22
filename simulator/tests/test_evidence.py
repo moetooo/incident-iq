@@ -6,8 +6,7 @@ def test_evidence_structure_and_contract(client):
     resp = client.get("/internal/evidence")
     assert resp.status_code == 200
     data = resp.json()
-    assert "items" in data
-    assert "total" in data
+    assert set(data.keys()) == {"items"}, f"Contract requires exactly {{'items'}}, got {set(data.keys())}"
     assert len(data["items"]) > 0
 
     for item in data["items"]:
@@ -19,6 +18,17 @@ def test_evidence_structure_and_contract(client):
         datetime.fromisoformat(item["timestamp"].replace("Z", "+00:00"))
         assert "summary" in item and isinstance(item["summary"], str)
         assert "details" in item and isinstance(item["details"], dict)
+
+
+def test_evidence_response_top_level_keys_strict(client):
+    """Verify GET /internal/evidence has only 'items' across all scenarios."""
+    for sc in ["normal", "database_failure", "payment_timeout", "bad_deployment"]:
+        client.post(f"/demo/scenarios/{sc}/trigger")
+        resp = client.get("/internal/evidence")
+        assert resp.status_code == 200
+        keys = set(resp.json().keys())
+        assert keys == {"items"}, f"Scenario {sc} returned unexpected keys: {keys}"
+
 
 
 def test_database_failure_stable_evidence_ids(client):
