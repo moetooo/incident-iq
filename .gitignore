@@ -1,0 +1,104 @@
+# Environment variables and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+secrets/
+credentials.json
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.egg-info/
+dist/
+build/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+pnpm-debug.log*
+.npm/
+.vite/
+coverage/
+
+# Frontend build
+frontend/dist/
+dist/
+build/
+
+# IDEs and editors
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Databases
+*.sqlite
+*.sqlite3
+*.db
+
+# Docker and local overrides
+docker-compose.override.yml
+
+# Test and temporary files
+.tmp/
+temp/
+tmp/
+*.bak
+*.orig
+*.rej
+
+# Local AI and model files
+*.gguf
+*.safetensors
+models/
+
+# OS files
+Desktop.ini
+
+# Preserve project configuration examples
+!.env.example
+
+# AI Agent Skills and Docs (Local agent context, excluded from Git commits)
+.agents/
+**/.agents/
+.kilo/
+**/.kilo/
+docs/
+**/docs/
+
+# Canonical shared contracts are tracked in Git.
+# Git does not descend into an excluded directory, so the root docs directory
+# must be unignored before the files inside it. The leading slash anchors the
+# rule to the repository root: without it, "docs/" also matches every nested
+# docs/ directory (backend/docs, simulator/docs, frontend/docs) and would
+# unignore those local copies as well.
+# Only the four canonical contract documents are re-included: every other file
+# in docs/ and every nested docs/ directory stays ignored.
+!/docs/
+docs/*
+!docs/api-contract.md
+!docs/data-model.md
+!docs/architecture.md
+!docs/agent-ownership.md
