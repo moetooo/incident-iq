@@ -5,6 +5,7 @@
 
 const BASE_URL = (import.meta.env.VITE_API_BASE_URL || '').replace(/\/$/, '');
 const DEFAULT_TIMEOUT_MS = 15000;
+const DEFAULT_OPERATOR_ID = (import.meta.env.VITE_OPERATOR_ID || 'operator').trim() || 'operator';
 
 export class ApiError extends Error {
   constructor(message, status, code = 'API_ERROR', details = null) {
@@ -150,19 +151,29 @@ export const api = {
 
   /**
    * Approve remediation: POST /api/v1/remediations/{remediation_id}/approve
+   * Sends X-Operator-Id header required by backend
    */
-  async approveRemediation(remediationId) {
+  async approveRemediation(remediationId, operatorId = DEFAULT_OPERATOR_ID) {
+    const opId = typeof operatorId === 'string' ? operatorId : (operatorId?.operatorId || DEFAULT_OPERATOR_ID);
     return request(`/api/v1/remediations/${encodeURIComponent(remediationId)}/approve`, {
       method: 'POST',
+      headers: {
+        'X-Operator-Id': opId || DEFAULT_OPERATOR_ID,
+      },
     });
   },
 
   /**
    * Reject remediation: POST /api/v1/remediations/{remediation_id}/reject
+   * Sends X-Operator-Id header required by backend
    */
-  async rejectRemediation(remediationId) {
+  async rejectRemediation(remediationId, operatorId = DEFAULT_OPERATOR_ID) {
+    const opId = typeof operatorId === 'string' ? operatorId : (operatorId?.operatorId || DEFAULT_OPERATOR_ID);
     return request(`/api/v1/remediations/${encodeURIComponent(remediationId)}/reject`, {
       method: 'POST',
+      headers: {
+        'X-Operator-Id': opId || DEFAULT_OPERATOR_ID,
+      },
     });
   },
 

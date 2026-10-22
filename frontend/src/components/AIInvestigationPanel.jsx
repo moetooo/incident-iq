@@ -19,10 +19,21 @@ export default function AIInvestigationPanel({
   investigationError = null,
   onRunInvestigation
 }) {
-  const hypotheses = rcaData?.root_cause_hypotheses || [];
+  const hypotheses = Array.isArray(rcaData?.root_cause_hypotheses)
+    ? rcaData.root_cause_hypotheses
+    : [];
   const primaryHypothesis = hypotheses[0];
-  const alternativeHypotheses = hypotheses.slice(1);
-  const recommendations = rcaData?.recommendations || [];
+
+  // Prefer explicit alternative_hypotheses when supplied; fallback to hypotheses.slice(1) when absent
+  const alternativeHypotheses = Array.isArray(rcaData?.alternative_hypotheses)
+    ? rcaData.alternative_hypotheses
+    : hypotheses.slice(1);
+
+  // Prefer recommended_checks when present, retaining fallback compatibility with recommendations
+  const recommendations = Array.isArray(rcaData?.recommended_checks)
+    ? rcaData.recommended_checks
+    : (Array.isArray(rcaData?.recommendations) ? rcaData.recommendations : []);
+
   const isCompleted = rcaData?.status === 'completed';
   const llmUsed = !!rcaData?.llm_used;
 
@@ -183,17 +194,27 @@ export default function AIInvestigationPanel({
                   Alternative Hypotheses Evaluated ({alternativeHypotheses.length})
                 </h4>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                  {alternativeHypotheses.map((alt, idx) => (
-                    <div key={idx} className="p-2.5 bg-surface-elevated border border-surface-border rounded-md">
-                      <div className="flex items-center justify-between text-xs mb-0.5">
-                        <span className="font-semibold text-text-main font-mono text-[11px]">{alt.cause}</span>
-                        <span className="text-[10px] font-mono text-text-muted">
-                          {Math.round((alt.confidence || 0) * 100)}%
-                        </span>
+                  {alternativeHypotheses.map((alt, idx) => {
+                    const causeText = typeof alt === 'string' ? alt : (alt?.cause || alt?.title || 'Alternative Hypothesis');
+                    const confidence = typeof alt === 'object' && alt?.confidence !== undefined ? alt.confidence : null;
+                    const explanation = typeof alt === 'object' ? alt?.explanation : null;
+
+                    return (
+                      <div key={idx} className="p-2.5 bg-surface-elevated border border-surface-border rounded-md">
+                        <div className="flex items-center justify-between text-xs mb-0.5">
+                          <span className="font-semibold text-text-main font-mono text-[11px]">{causeText}</span>
+                          {confidence !== null && (
+                            <span className="text-[10px] font-mono text-text-muted">
+                              {Math.round(confidence * 100)}%
+                            </span>
+                          )}
+                        </div>
+                        {explanation && (
+                          <p className="text-[11px] text-text-muted line-clamp-2">{explanation}</p>
+                        )}
                       </div>
-                      <p className="text-[11px] text-text-muted line-clamp-2">{alt.explanation}</p>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -212,7 +233,9 @@ export default function AIInvestigationPanel({
                       className="flex items-start gap-2 p-2 rounded-md bg-surface-elevated border border-surface-border text-xs text-text-sub"
                     >
                       <FileCheck className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                      <span className="text-[11px]">{rec}</span>
+                      <span className="text-[11px]">
+                        {typeof rec === 'string' ? rec : (rec?.check || rec?.title || rec?.description || String(rec))}
+                      </span>
                     </div>
                   ))}
                 </div>

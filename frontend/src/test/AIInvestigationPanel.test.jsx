@@ -68,4 +68,93 @@ describe('AIInvestigationPanel', () => {
     expect(screen.getByText(/LLM Inference Active/i)).toBeInTheDocument();
     expect(screen.getByText(/Slow query execution/i)).toBeInTheDocument();
   });
+
+  it('renders recommended_checks when provided by backend', () => {
+    const mockRca = {
+      incident_id: 'inc_456',
+      status: 'completed',
+      root_cause_hypotheses: [
+        {
+          cause: 'Upstream gateway timeout',
+          confidence: 0.85,
+        },
+      ],
+      recommended_checks: [
+        'Check upstream PSP status dashboard',
+        'Verify egress NAT gateway metrics',
+      ],
+      recommendations: [
+        'Ignored fallback recommendation',
+      ],
+    };
+
+    render(<AIInvestigationPanel rcaData={mockRca} />);
+    expect(screen.getByText(/Check upstream PSP status dashboard/i)).toBeInTheDocument();
+    expect(screen.getByText(/Verify egress NAT gateway metrics/i)).toBeInTheDocument();
+    expect(screen.queryByText(/Ignored fallback recommendation/i)).not.toBeInTheDocument();
+  });
+
+  it('falls back to recommendations when recommended_checks is absent', () => {
+    const mockRca = {
+      incident_id: 'inc_789',
+      status: 'completed',
+      root_cause_hypotheses: [
+        {
+          cause: 'Cache miss storm',
+          confidence: 0.76,
+        },
+      ],
+      recommendations: [
+        'Warm cache keys before traffic ramp',
+      ],
+    };
+
+    render(<AIInvestigationPanel rcaData={mockRca} />);
+    expect(screen.getByText(/Warm cache keys before traffic ramp/i)).toBeInTheDocument();
+  });
+
+  it('renders explicit alternative_hypotheses even when root_cause_hypotheses has only one item', () => {
+    const mockRca = {
+      incident_id: 'inc_101',
+      status: 'completed',
+      root_cause_hypotheses: [
+        {
+          cause: 'Primary: Auth token validation failure',
+          confidence: 0.95,
+        },
+      ],
+      alternative_hypotheses: [
+        {
+          cause: 'Alternative: Redis cluster partition',
+          confidence: 0.4,
+          explanation: 'Split-brain suspicion in cache tier.',
+        },
+        {
+          cause: 'Alternative: TLS handshake expiration',
+          confidence: 0.25,
+          explanation: 'Cert renewal timer elapsed.',
+        },
+      ],
+    };
+
+    render(<AIInvestigationPanel rcaData={mockRca} />);
+    expect(screen.getByText(/Primary: Auth token validation failure/i)).toBeInTheDocument();
+    expect(screen.getByText(/Alternative: Redis cluster partition/i)).toBeInTheDocument();
+    expect(screen.getByText(/Alternative: TLS handshake expiration/i)).toBeInTheDocument();
+    expect(screen.getByText('40%')).toBeInTheDocument();
+    expect(screen.getByText('25%')).toBeInTheDocument();
+  });
+
+  it('handles missing or empty optional fields safely without crashing', () => {
+    const sparseRca = {
+      incident_id: 'inc_empty',
+      status: 'completed',
+      // No root_cause_hypotheses, alternative_hypotheses, recommended_checks, or recommendations
+    };
+
+    const { container } = render(<AIInvestigationPanel rcaData={sparseRca} />);
+    expect(container).toBeInTheDocument();
+    expect(screen.getByText(/Diagnosis Complete/i)).toBeInTheDocument();
+    expect(screen.getByText(/No specific hypothesis was returned by the correlation engine/i)).toBeInTheDocument();
+  });
 });

@@ -91,30 +91,60 @@ describe('Centralized API Client', () => {
     expect(res).toEqual(rcaResponse);
   });
 
-  it('approveRemediation and rejectRemediation post to remediation endpoints', async () => {
+  it('approveRemediation includes X-Operator-Id header and correct endpoint path', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       headers: { get: () => 'application/json' },
       json: async () => ({ status: 'approved' }),
     });
 
+    // Default operator
     const resApprove = await api.approveRemediation('rem_1');
     expect(global.fetch).toHaveBeenCalledWith('/api/v1/remediations/rem_1/approve', expect.objectContaining({
       method: 'POST',
+      headers: expect.objectContaining({
+        'X-Operator-Id': 'operator',
+        'Content-Type': 'application/json',
+      }),
     }));
     expect(resApprove.status).toBe('approved');
 
+    // Custom operator
+    await api.approveRemediation('rem_1', 'custom-operator-42');
+    expect(global.fetch).toHaveBeenCalledWith('/api/v1/remediations/rem_1/approve', expect.objectContaining({
+      method: 'POST',
+      headers: expect.objectContaining({
+        'X-Operator-Id': 'custom-operator-42',
+      }),
+    }));
+  });
+
+  it('rejectRemediation includes X-Operator-Id header and correct endpoint path', async () => {
     global.fetch = vi.fn().mockResolvedValue({
       ok: true,
       headers: { get: () => 'application/json' },
       json: async () => ({ status: 'rejected' }),
     });
 
-    const resReject = await api.rejectRemediation('rem_1');
-    expect(global.fetch).toHaveBeenCalledWith('/api/v1/remediations/rem_1/reject', expect.objectContaining({
+    // Default operator
+    const resReject = await api.rejectRemediation('rem_2');
+    expect(global.fetch).toHaveBeenCalledWith('/api/v1/remediations/rem_2/reject', expect.objectContaining({
       method: 'POST',
+      headers: expect.objectContaining({
+        'X-Operator-Id': 'operator',
+        'Content-Type': 'application/json',
+      }),
     }));
     expect(resReject.status).toBe('rejected');
+
+    // Custom operator
+    await api.rejectRemediation('rem_2', 'custom-operator-99');
+    expect(global.fetch).toHaveBeenCalledWith('/api/v1/remediations/rem_2/reject', expect.objectContaining({
+      method: 'POST',
+      headers: expect.objectContaining({
+        'X-Operator-Id': 'custom-operator-99',
+      }),
+    }));
   });
 
   it('normalizes HTTP errors into ApiError instances', async () => {
