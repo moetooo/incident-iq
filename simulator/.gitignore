@@ -1,0 +1,21 @@
+# Simulator local gitignore
+.pytest_cache/
+__pycache__/
+*.py[cod]
+*$py.class
+.env
+.venv
+env/
+venv/
+
+# Un-ignore app/models which was matched by root models/ rule
+!app/models/
+!app/models/*.py
+!app/models/**/*.py
+
+# Always ignore bytecode and cache
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+
