@@ -1,0 +1,95 @@
+# IncidentIQ local stack.
+#
+# Start with:  docker compose up --build
+#
+# The backend runs Alembic migrations before serving. It starts and stays
+# healthy without GEMINI_API_KEY; the deterministic analysis engine is used
+# until a key is provided.
+#
+# Every variable below can be overridden from a local `.env` file
+# (copy `.env.example` to `.env`). Values are read by Docker Compose for
+# interpolation only, so the stack also starts without a `.env` file.
+
+name: incidentiq
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: incidentiq-db
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-incidentiq}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-incidentiq}
+      POSTGRES_DB: ${POSTGRES_DB:-incidentiq}
+    ports:
+      - "5432:5432"
+    volumes:
+      - incidentiq-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-incidentiq} -d ${POSTGRES_DB:-incidentiq}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: incidentiq-backend
+    environment:
+      DATABASE_URL: postgresql+psycopg://${POSTGRES_USER:-incidentiq}:${POSTGRES_PASSWORD:-incidentiq}@db:5432/${POSTGRES_DB:-incidentiq}
+      SIMULATOR_BASE_URL: ${SIMULATOR_BASE_URL:-http://simulator:8001}
+      SIMULATOR_TIMEOUT_SECONDS: ${SIMULATOR_TIMEOUT_SECONDS:-10}
+      API_KEY: ${API_KEY:-}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      ENVIRONMENT: ${ENVIRONMENT:-development}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.8-flash}
+      LLM_ENABLED: ${LLM_ENABLED:-true}
+      LLM_TIMEOUT_SECONDS: ${LLM_TIMEOUT_SECONDS:-45}
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=5)"
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    restart: unless-stopped
+
+  simulator:
+    build:
+      context: ./simulator
+      dockerfile: Dockerfile
+    container_name: incidentiq-simulator
+    environment:
+      SIMULATOR_PORT: 8001
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+    ports:
+      - "8001:8001"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: incidentiq-frontend
+    environment:
+      VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
+      VITE_DEV_PROXY_TARGET: ${VITE_DEV_PROXY_TARGET:-http://backend:8000}
+    ports:
+      - "5173:5173"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
+volumes:
+  incidentiq-db-data:
