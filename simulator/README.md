@@ -27,6 +27,7 @@ A standalone FastAPI microservice that simulates a production payment service (`
 - `GET /internal/evidence`: Returns generated evidence items (`log`, `metric`, `deployment`, `state`) with stable IDs for backend RCA referencing.
 - `GET /internal/deployments`: Returns deployment history including commit SHA and changelogs.
 - `GET /internal/metrics`: Live metrics snapshot (latency, error rate, DB connection utilization).
+- `POST /internal/remediations`: Executes allowlisted simulated remediation actions (`rollback_demo_deployment`, `restart_demo_service`, `scale_demo_instances`, `clear_demo_cache`).
 
 ### Simulated Payment Traffic
 - `POST /payments`: Processes simulated payment requests reflecting active scenario conditions.

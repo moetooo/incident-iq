@@ -11,6 +11,7 @@ from app.api.health import router as health_router
 from app.api.scenarios import router as scenarios_router
 from app.api.evidence import router as evidence_router
 from app.api.payments import router as payments_router
+from app.api.remediations import router as remediations_router
 
 
 from contextlib import asynccontextmanager
@@ -49,6 +50,18 @@ def create_app() -> FastAPI:
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException):
         req_id = f"req_{uuid.uuid4().hex[:8]}"
+        if isinstance(exc.detail, dict):
+            error_data = {
+                "code": exc.detail.get("code", f"HTTP_{exc.status_code}"),
+                "message": exc.detail.get("message", "An error occurred"),
+                "request_id": req_id
+            }
+            if "details" in exc.detail:
+                error_data["details"] = exc.detail["details"]
+            return JSONResponse(
+                status_code=exc.status_code,
+                content={"error": error_data}
+            )
         return JSONResponse(
             status_code=exc.status_code,
             content={
@@ -80,6 +93,7 @@ def create_app() -> FastAPI:
     app.include_router(scenarios_router)
     app.include_router(evidence_router)
     app.include_router(payments_router)
+    app.include_router(remediations_router)
 
     return app
 

@@ -6,11 +6,19 @@ from typing import List, Optional, Dict, Any
 
 from app.core.config import settings
 from app.core.logging import logger
+from app.core.errors import UnsupportedActionError, InvalidParametersError
 from app.models.scenario import ScenarioId, ScenarioStatus
 from app.models.evidence import EvidenceItem, EvidenceType
 from app.models.deployment import DeploymentItem
 from app.models.metrics import SimulatorMetrics
 from app.models.payment import PaymentRequest, PaymentResponse
+
+ALLOWED_REMEDIATION_ACTIONS = frozenset({
+    "rollback_demo_deployment",
+    "restart_demo_service",
+    "scale_demo_instances",
+    "clear_demo_cache"
+})
 
 
 class SimulatorStateService:
@@ -29,6 +37,10 @@ class SimulatorStateService:
         # Runtime request metrics
         self._request_count: int = 0
         self._error_count: int = 0
+
+        # Simulated operational resources
+        self._instance_count: int = 2
+        self._cache_cleared_at: Optional[str] = None
         
         # Initialize default healthy state
         self._initialize_healthy_state()
@@ -41,6 +53,8 @@ class SimulatorStateService:
         self._current_version = settings.SIMULATOR_VERSION
         self._request_count = 1250
         self._error_count = 0
+        self._instance_count = 2
+        self._cache_cleared_at = None
 
         self._deployments = [
             DeploymentItem(
@@ -538,6 +552,180 @@ class SimulatorStateService:
             latency_ms=35.0,
             message="Payment completed"
         )
+
+    def get_instance_count(self) -> int:
+        with self._lock:
+            return self._instance_count
+
+    def get_cache_cleared_at(self) -> Optional[str]:
+        with self._lock:
+            return self._cache_cleared_at
+
+    def execute_remediation(self, action: str, parameters: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """Executes an allowlisted simulated remediation action against current simulator state."""
+        params = dict(parameters or {})
+
+        if action not in ALLOWED_REMEDIATION_ACTIONS:
+            raise UnsupportedActionError(
+                action=action,
+                allowed_actions=list(ALLOWED_REMEDIATION_ACTIONS)
+            )
+
+        if action == "rollback_demo_deployment":
+            if "version" in params:
+                val = params["version"]
+                if not isinstance(val, str) or not val.strip():
+                    raise InvalidParametersError(
+                        f"Parameter 'version' of action '{action}' must be a non-empty string",
+                        details={"action": action, "parameter": "version"}
+                    )
+                target_version = val.strip()
+            else:
+                target_version = settings.SIMULATOR_VERSION
+
+            if params.get("simulate_failure") is True:
+                return {
+                    "status": "failed",
+                    "message": f"Simulated rollback failure for {settings.SERVICE_NAME}",
+                    "details": {"error": "Deployment rollback hook timed out"}
+                }
+
+            with self._lock:
+                now_iso = datetime.now(timezone.utc).isoformat()
+                self._current_version = target_version
+
+                # Update deployment statuses
+                for d in self._deployments:
+                    if d.id == "dep_v241_faulty":
+                        d.status = "rolled_back"
+                    elif d.version == target_version:
+                        d.status = "active"
+                    else:
+                        d.status = "superseded"
+
+                # If target version wasn't recorded, add it
+                if not any(d.version == target_version for d in self._deployments):
+                    self._deployments.insert(
+                        0,
+                        DeploymentItem(
+                            id=f"dep_{target_version.replace('.', '')}_restored",
+                            version=target_version,
+                            service=settings.SERVICE_NAME,
+                            deployed_at=now_iso,
+                            deployed_by="remediation-controller",
+                            status="active",
+                            commit_sha="c7b1e42",
+                            changelog=f"Restored release {target_version} via remediation"
+                        )
+                    )
+
+                self._current_scenario = ScenarioId.NORMAL
+                self._error_count = 0
+                self._activated_at = now_iso
+                self._evidence = self._create_healthy_evidence(now_iso)
+
+                logger.info(
+                    f"Remediation executed: {action} -> version {target_version}",
+                    extra={"extra_data": {"action": action, "target_version": target_version}}
+                )
+
+                return {
+                    "status": "success",
+                    "message": f"Rolled back {settings.SERVICE_NAME} to {target_version}",
+                    "details": {"version": target_version}
+                }
+
+        elif action == "restart_demo_service":
+            if params.get("simulate_failure") is True:
+                return {
+                    "status": "failed",
+                    "message": f"Simulated restart failure for {settings.SERVICE_NAME}",
+                    "details": {"error": "Process supervisor failed to restart service"}
+                }
+
+            with self._lock:
+                now_iso = datetime.now(timezone.utc).isoformat()
+                self._current_scenario = ScenarioId.NORMAL
+                self._current_version = settings.SIMULATOR_VERSION
+                self._error_count = 0
+                self._activated_at = now_iso
+                self._sync_deployment_statuses()
+                self._evidence = self._create_healthy_evidence(now_iso)
+
+                logger.info(
+                    f"Remediation executed: {action} -> healthy baseline",
+                    extra={"extra_data": {"action": action}}
+                )
+
+                return {
+                    "status": "success",
+                    "message": f"Restarted {settings.SERVICE_NAME} and restored healthy baseline",
+                    "details": {"restarted": True, "scenario": "normal"}
+                }
+
+        elif action == "scale_demo_instances":
+            if "instances" not in params:
+                raise InvalidParametersError(
+                    f"Missing required parameter 'instances' for action '{action}'",
+                    details={"action": action, "missing_parameters": ["instances"]}
+                )
+
+            val = params["instances"]
+            if isinstance(val, bool) or not isinstance(val, int):
+                raise InvalidParametersError(
+                    f"Parameter 'instances' of action '{action}' must be an integer",
+                    details={"action": action, "parameter": "instances"}
+                )
+
+            if not (1 <= val <= 10):
+                raise InvalidParametersError(
+                    f"Parameter 'instances' of action '{action}' must be between 1 and 10",
+                    details={"action": action, "parameter": "instances"}
+                )
+
+            if params.get("simulate_failure") is True:
+                return {
+                    "status": "failed",
+                    "message": f"Simulated scaling failure for {settings.SERVICE_NAME}",
+                    "details": {"error": "Resource quota exceeded for instance scaling"}
+                }
+
+            with self._lock:
+                self._instance_count = val
+
+                logger.info(
+                    f"Remediation executed: {action} -> {val} instances",
+                    extra={"extra_data": {"action": action, "instances": val}}
+                )
+
+                return {
+                    "status": "success",
+                    "message": f"Scaled {settings.SERVICE_NAME} to {val} instances",
+                    "details": {"instances": val}
+                }
+
+        elif action == "clear_demo_cache":
+            if params.get("simulate_failure") is True:
+                return {
+                    "status": "failed",
+                    "message": f"Simulated cache clear failure for {settings.SERVICE_NAME}",
+                    "details": {"error": "Cache cluster unreachable"}
+                }
+
+            with self._lock:
+                now_iso = datetime.now(timezone.utc).isoformat()
+                self._cache_cleared_at = now_iso
+
+                logger.info(
+                    f"Remediation executed: {action}",
+                    extra={"extra_data": {"action": action}}
+                )
+
+                return {
+                    "status": "success",
+                    "message": f"Cleared cache for {settings.SERVICE_NAME}",
+                    "details": {"cleared": True}
+                }
 
 
 # Singleton instance for the simulator service
