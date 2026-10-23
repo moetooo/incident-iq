@@ -20,3 +20,8 @@ ignore = ["B008"]
 [tool.ruff.lint.per-file-ignores]
 # Alembic migrations are generated and intentionally keep long column definitions.
 "migrations/versions/*" = ["E501"]
+"app/core/logging.py" = ["UP017"]
+"app/db/base.py" = ["UP017"]
+"app/services/evidence_service.py" = ["UP017"]
+"app/services/remediation_service.py" = ["UP017"]
+"app/schemas/common.py" = ["UP017"]

@@ -12,6 +12,14 @@ from app.core.errors import UnauthorizedError, ValidationError
 from app.investigation.deterministic import DeterministicEngine
 from app.investigation.llm.base import LLMProvider
 from app.investigation.llm.gemini_provider import GeminiProvider
+from app.investigation.llm.model_discovery import (
+    ModelDiscoveryService,
+    create_model_discovery_service,
+)
+from app.investigation.llm.model_fallback import (
+    GeminiFallbackOrchestrator,
+    create_fallback_orchestrator,
+)
 from app.repositories.evidence_repository import EvidenceRepository
 from app.repositories.incident_repository import IncidentRepository
 from app.repositories.investigation_repository import InvestigationRepository
@@ -77,6 +85,31 @@ def get_evidence_service(
     return EvidenceService(simulator_client, repository)
 
 
+@lru_cache(maxsize=1)
+def _model_discovery_service() -> ModelDiscoveryService | None:
+    """Create the model discovery service, or None when no API key."""
+    settings = get_settings()
+    return create_model_discovery_service(settings)
+
+
+def get_model_discovery_service() -> ModelDiscoveryService | None:
+    """Return the shared model discovery service."""
+    return _model_discovery_service()
+
+
+@lru_cache(maxsize=1)
+def _fallback_orchestrator() -> GeminiFallbackOrchestrator | None:
+    """Create the fallback orchestrator, or None when LLM not configured."""
+    settings = get_settings()
+    discovery = _model_discovery_service()
+    return create_fallback_orchestrator(settings, discovery_service=discovery)
+
+
+def get_fallback_orchestrator() -> GeminiFallbackOrchestrator | None:
+    """Return the shared fallback orchestrator."""
+    return _fallback_orchestrator()
+
+
 def build_llm_provider() -> LLMProvider | None:
     """Create the configured provider, or ``None`` when no key is available."""
     settings = get_settings()
@@ -99,7 +132,7 @@ def get_investigation_service(
     incident_repository: IncidentRepository = Depends(get_incident_repository),
     investigation_repository: InvestigationRepository = Depends(get_investigation_repository),
     remediation_repository: RemediationRepository = Depends(get_remediation_repository),
-    provider_factory: ProviderFactory = Depends(get_provider_factory),
+    fallback_orchestrator: GeminiFallbackOrchestrator | None = Depends(get_fallback_orchestrator),
 ) -> InvestigationService:
     """Return the investigation service."""
     settings = get_settings()
@@ -108,7 +141,8 @@ def get_investigation_service(
         incident_repository=incident_repository,
         investigation_repository=investigation_repository,
         remediation_repository=remediation_repository,
-        provider_factory=provider_factory,
+        fallback_orchestrator=fallback_orchestrator,
+        settings=settings,
         fallback_engine=DeterministicEngine(),
         max_evidence_items=settings.LLM_MAX_EVIDENCE_ITEMS,
     )

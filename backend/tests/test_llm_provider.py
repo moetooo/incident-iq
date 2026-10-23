@@ -103,7 +103,7 @@ def test_provider_returns_a_validated_report(fake_client):
     models = _FakeModels(_FakeResponse(json.dumps(VALID_PAYLOAD)))
     fake_client(models)
 
-    provider = GeminiProvider(api_key="test-key", model="gemini-3.8-flash")
+    provider = GeminiProvider(api_key="test-key", model="gemini-3.5-flash-lite")
     report = provider.analyze(_request())
 
     assert report.summary == "The pool was exhausted."
@@ -116,11 +116,11 @@ def test_provider_sends_structured_output_configuration(fake_client):
     models = _FakeModels(_FakeResponse(json.dumps(VALID_PAYLOAD)))
     fake_client(models)
 
-    provider = GeminiProvider(api_key="test-key", model="gemini-3.8-flash")
+    provider = GeminiProvider(api_key="test-key", model="gemini-3.5-flash-lite")
     provider.analyze(_request())
 
     call = models.calls[0]
-    assert call["model"] == "gemini-3.8-flash"
+    assert call["model"] == "gemini-3.5-flash-lite"
     assert call["config"]["response_mime_type"] == "application/json"
     assert call["config"]["response_json_schema"]["type"] == "object"
     prompt = call["contents"]
@@ -132,7 +132,7 @@ def test_provider_rejects_malformed_json(fake_client):
     models = _FakeModels(_FakeResponse("not json at all"))
     fake_client(models)
 
-    provider = GeminiProvider(api_key="test-key", model="gemini-3.8-flash")
+    provider = GeminiProvider(api_key="test-key", model="gemini-3.5-flash-lite")
 
     with pytest.raises(LLMProviderError) as excinfo:
         provider.analyze(_request())
@@ -144,7 +144,7 @@ def test_provider_rejects_an_empty_response(fake_client):
     models = _FakeModels(_FakeResponse(""))
     fake_client(models)
 
-    provider = GeminiProvider(api_key="test-key", model="gemini-3.8-flash")
+    provider = GeminiProvider(api_key="test-key", model="gemini-3.5-flash-lite")
 
     with pytest.raises(LLMProviderError) as excinfo:
         provider.analyze(_request())
@@ -158,7 +158,7 @@ def test_provider_rejects_output_that_fails_validation(fake_client):
     models = _FakeModels(_FakeResponse(json.dumps(payload)))
     fake_client(models)
 
-    provider = GeminiProvider(api_key="test-key", model="gemini-3.8-flash")
+    provider = GeminiProvider(api_key="test-key", model="gemini-3.5-flash-lite")
 
     with pytest.raises(LLMProviderError) as excinfo:
         provider.analyze(_request())
@@ -171,7 +171,7 @@ def test_provider_classifies_a_rate_limit(fake_client):
     models = _FakeModels(error=error)
     fake_client(models)
 
-    provider = GeminiProvider(api_key="test-key", model="gemini-3.8-flash")
+    provider = GeminiProvider(api_key="test-key", model="gemini-3.5-flash-lite")
 
     with pytest.raises(LLMProviderError) as excinfo:
         provider.analyze(_request())
@@ -179,11 +179,24 @@ def test_provider_classifies_a_rate_limit(fake_client):
     assert excinfo.value.reason == "rate_limited"
 
 
+def test_provider_classifies_a_service_unavailable(fake_client):
+    error = genai_errors.APIError(code=503, response_json={"error": {"code": 503}})
+    models = _FakeModels(error=error)
+    fake_client(models)
+
+    provider = GeminiProvider(api_key="test-key", model="gemini-3.5-flash-lite")
+
+    with pytest.raises(LLMProviderError) as excinfo:
+        provider.analyze(_request())
+
+    assert excinfo.value.reason == "unavailable"
+
+
 def test_provider_classifies_a_timeout(fake_client):
     models = _FakeModels(error=httpx.TimeoutException("request timed out"))
     fake_client(models)
 
-    provider = GeminiProvider(api_key="test-key", model="gemini-3.8-flash")
+    provider = GeminiProvider(api_key="test-key", model="gemini-3.5-flash-lite")
 
     with pytest.raises(LLMProviderError) as excinfo:
         provider.analyze(_request())
@@ -192,12 +205,52 @@ def test_provider_classifies_a_timeout(fake_client):
 
 
 def test_provider_reports_missing_credentials():
-    provider = GeminiProvider(api_key=None, model="gemini-3.8-flash")
+    provider = GeminiProvider(api_key=None, model="gemini-3.5-flash-lite")
 
     with pytest.raises(LLMProviderError) as excinfo:
         provider.analyze(_request())
 
     assert excinfo.value.reason == "missing_credentials"
+
+
+def test_provider_classifies_an_auth_error_as_config_error(fake_client):
+    error = genai_errors.ClientError(code=401, response_json={"error": {"code": 401}})
+    models = _FakeModels(error=error)
+    fake_client(models)
+
+    provider = GeminiProvider(api_key="test-key", model="gemini-3.5-flash-lite")
+
+    with pytest.raises(LLMProviderError) as excinfo:
+        provider.analyze(_request())
+
+    assert excinfo.value.reason == "config_error"
+
+
+def test_provider_classifies_a_forbidden_error_as_config_error(fake_client):
+    error = genai_errors.ClientError(code=403, response_json={"error": {"code": 403}})
+    models = _FakeModels(error=error)
+    fake_client(models)
+
+    provider = GeminiProvider(api_key="test-key", model="gemini-3.5-flash-lite")
+
+    with pytest.raises(LLMProviderError) as excinfo:
+        provider.analyze(_request())
+
+    assert excinfo.value.reason == "config_error"
+
+
+def test_provider_rejects_zero_hypotheses_with_evidence(fake_client):
+    payload = dict(VALID_PAYLOAD)
+    payload["root_cause_hypotheses"] = []
+    models = _FakeModels(_FakeResponse(json.dumps(payload)))
+    fake_client(models)
+
+    provider = GeminiProvider(api_key="test-key", model="gemini-3.5-flash-lite")
+
+    with pytest.raises(LLMProviderError) as excinfo:
+        provider.analyze(_request())
+
+    assert excinfo.value.reason == "no_usable_hypotheses"
 
 
 def test_response_schema_is_flat():

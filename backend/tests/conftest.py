@@ -21,10 +21,12 @@ from sqlalchemy import create_engine  # noqa: E402
 from sqlalchemy.orm import sessionmaker  # noqa: E402
 from sqlalchemy.pool import StaticPool  # noqa: E402
 
-from app.api.deps import get_simulator_client  # noqa: E402
+from app.api.deps import get_fallback_orchestrator, get_simulator_client
 from app.db.base import Base  # noqa: E402
 from app.db.session import get_db  # noqa: E402
-from app.investigation.llm.base import AnalysisRequest, LLMProvider  # noqa: E402
+from app.investigation.deterministic import DeterministicEngine  # noqa: E402
+from app.investigation.llm.base import AnalysisRequest, LLMProvider, LLMProviderError  # noqa: E402
+from app.investigation.llm.model_fallback import AttemptRecord, FallbackResult  # noqa: E402
 from app.main import create_app  # noqa: E402
 
 
@@ -96,6 +98,54 @@ class FakeProvider(LLMProvider):
         return self.report
 
 
+class FakeOrchestrator:
+    """Test double for GeminiFallbackOrchestrator wrapping a FakeProvider."""
+
+    def __init__(self, provider: FakeProvider | None = None) -> None:
+        self.provider = provider or FakeProvider()
+        self.calls: list[tuple] = []
+
+    async def analyze(self, request: AnalysisRequest, primary_model: str) -> FallbackResult:
+        self.calls.append((request, primary_model))
+        model = getattr(self.provider, "model", primary_model)
+        try:
+            report = self.provider.analyze(request)
+        except LLMProviderError as exc:
+            report = DeterministicEngine().analyze(request)
+            return FallbackResult(
+                report=report,
+                provider_name="deterministic",
+                model=None,
+                llm_used=False,
+                attempts=[
+                    AttemptRecord(
+                        model=primary_model,
+                        attempt_number=1,
+                        duration_ms=1,
+                        success=False,
+                        reason=exc.reason,
+                    )
+                ],
+                fallback_used=True,
+            )
+        return FallbackResult(
+            report=report,
+            provider_name="gemini",
+            model=model,
+            llm_used=True,
+            attempts=[
+                AttemptRecord(
+                    model=model,
+                    attempt_number=1,
+                    duration_ms=1,
+                    success=True,
+                    reason=None,
+                )
+            ],
+            fallback_used=False,
+        )
+
+
 @pytest.fixture(scope="session")
 def engine():
     """Create an in-memory database shared by the whole test session."""
@@ -141,7 +191,9 @@ def make_client(engine):
     """Return a factory that builds a test client with custom overrides."""
     from app.api.deps import get_provider_factory
 
-    def _factory(simulator=None, provider_factory=None) -> TestClient:
+    def _factory(
+        simulator=None, provider_factory=None, orchestrator=None
+    ) -> TestClient:
         application = create_app()
         factory = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
 
@@ -158,6 +210,8 @@ def make_client(engine):
         )
         if provider_factory is not None:
             application.dependency_overrides[get_provider_factory] = lambda: provider_factory
+        if orchestrator is not None:
+            application.dependency_overrides[get_fallback_orchestrator] = lambda: orchestrator
         return TestClient(application)
 
     return _factory

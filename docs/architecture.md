@@ -97,9 +97,12 @@ Only the backend owns application database writes.
 | `DATABASE_URL` | backend | `postgresql+psycopg://incidentiq:incidentiq@db:5432/incidentiq` | SQLAlchemy database URL. |
 | `SIMULATOR_BASE_URL` | backend | `http://simulator:8001` | Base URL of the simulator service. |
 | `GEMINI_API_KEY` | backend | unset | Gemini API key. The backend must start and stay healthy without it. |
-| `GEMINI_MODEL` | backend | `gemini-3.8-flash` | Gemini model id used for investigation. |
+| `GEMINI_MODEL` | backend | `gemini-3.5-flash-lite` | Gemini model id used for investigation. |
 | `LLM_ENABLED` | backend | `true` | Master switch for provider calls. |
 | `LLM_TIMEOUT_SECONDS` | backend | `45` | Per-request provider timeout. |
+| `GEMINI_MODEL_DISCOVERY_TTL_SECONDS` | backend | `3600` | Discovery cache TTL in seconds. |
+| `GEMINI_MAX_FALLBACK_ATTEMPTS` | backend | `3` | Max Gemini models attempted before deterministic fallback. |
+| `GEMINI_FALLBACK_TIME_BUDGET_SECONDS` | backend | `30` | Time budget (seconds) for the fallback sequence. |
 | `API_KEY` | backend | unset | When set, `X-API-Key` is required on `/api/v1/**`. |
 | `CORS_ORIGINS` | backend | `http://localhost:5173` | Comma-separated allowed origins. |
 | `LOG_LEVEL` | backend | `INFO` | Structured log level. |
@@ -112,8 +115,20 @@ Only the backend owns application database writes.
 ## 7. LLM integration
 
 - Provider: **Gemini API** via the official `google-genai` Python SDK.
-- Model: `gemini-3.8-flash` (stable, structured-output capable), overridable
+- Model: `gemini-3.5-flash-lite` (structured-output capable), overridable
   with `GEMINI_MODEL`.
+- Dynamic discovery: eligible models are discovered at runtime via
+  `client.models.list()`, cached with TTL `GEMINI_MODEL_DISCOVERY_TTL_SECONDS`,
+  and filtered for `generateContent` support. Structured-output capability is
+  inferred from the model ID family.
+- Model fallback: the primary model is tried first; on retryable errors the
+  `GeminiFallbackOrchestrator` tries discovered fallback models, bounded by
+  `GEMINI_MAX_FALLBACK_ATTEMPTS` and `GEMINI_FALLBACK_TIME_BUDGET_SECONDS`.
+  Configuration/auth errors (401/403) are not retried. When all models fail,
+  the deterministic analysis engine is used.
+- Zero-hypothesis guard: a valid response with no root-cause hypotheses (when
+  evidence was provided) is treated as a soft failure so another model can be
+  tried.
 - Structured output: `response_mime_type: "application/json"` together with
   `response_json_schema` derived from the Pydantic RCA model. The schema is
   flattened so it contains no `$ref`/`$defs`, because Gemini supports only a
@@ -165,15 +180,20 @@ complexity level.
 
 | Failure | Behaviour |
 |---|---|
-| Missing API key | Deterministic fallback, `llm_used: false`. |
-| Timeout | Deterministic fallback, warning recorded. |
-| Rate limit (HTTP 429) | Deterministic fallback, warning recorded. |
-| Malformed output | Deterministic fallback, warning recorded. |
-| Provider error (5xx / transport) | Deterministic fallback, warning recorded. |
+| Missing API key / LLM disabled | Deterministic fallback, `llm_used: false`. |
+| Timeout | Retried on the next eligible model; deterministic fallback if all fail, warning recorded. |
+| Rate limit (HTTP 429) | Retried on the next eligible model; deterministic fallback if all fail, warning recorded. |
+| Malformed output | Retried on the next eligible model; deterministic fallback if all fail, warning recorded. |
+| Provider error (5xx / transport) | Retried on the next eligible model; deterministic fallback if all fail, warning recorded. |
+| Auth / config error (HTTP 401/403) | Not retried; deterministic fallback immediately, warning recorded. |
+| Model not found (HTTP 404) | Retried on the next eligible model; deterministic fallback if all fail, warning recorded. |
+| Valid response with zero hypotheses (evidence present) | Treated as a soft failure; another eligible model is tried. |
 
-The fallback engine applies fixed rules over the collected evidence and
-produces the same report structure, so the demo always works without
-credentials.
+The `GeminiFallbackOrchestrator` bounds attempts with
+`GEMINI_MAX_FALLBACK_ATTEMPTS` and `GEMINI_FALLBACK_TIME_BUDGET_SECONDS`. When
+every eligible model fails, the deterministic analysis engine is used. The
+fallback engine applies fixed rules over the collected evidence and produces
+the same report structure, so the demo always works without credentials.
 
 ## 8. Safe remediation
 

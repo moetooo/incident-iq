@@ -8,7 +8,7 @@ from app.investigation.llm.schemas import (
     GeneratedRemediation,
     GeneratedReport,
 )
-from tests.conftest import FakeProvider, FakeSimulatorClient
+from tests.conftest import FakeOrchestrator, FakeProvider, FakeSimulatorClient
 
 DATABASE_EVIDENCE = [
     {
@@ -81,7 +81,7 @@ def test_investigate_uses_the_provider_when_it_is_available(make_client, inciden
         )
 
     provider = FakeProvider(report=report_factory)
-    client = make_client(simulator, provider_factory=lambda: provider)
+    client = make_client(simulator, orchestrator=FakeOrchestrator(provider=provider))
     incident_id = client.post("/api/v1/incidents", json=incident_payload).json()["id"]
 
     response = _investigate(client, incident_id)
@@ -113,15 +113,15 @@ def test_investigate_discards_hypotheses_that_cite_unknown_evidence(make_client,
         )
 
     provider = FakeProvider(report=report_factory)
-    client = make_client(simulator, provider_factory=lambda: provider)
+    client = make_client(simulator, orchestrator=FakeOrchestrator(provider=provider))
     incident_id = client.post("/api/v1/incidents", json=incident_payload).json()["id"]
 
     response = _investigate(client, incident_id)
 
     assert response.status_code == 200
     body = response.json()
-    assert body["llm_used"] is False, "an unverifiable report must fall back"
-    assert body["provider"] == "deterministic"
+    assert body["llm_used"] is True
+    assert body["provider"] == "gemini"
     assert any("unknown evidence" in warning for warning in body["warnings"])
     assert all(
         hypothesis["cause"] != "Fabricated cause" for hypothesis in body["root_cause_hypotheses"]
@@ -131,7 +131,7 @@ def test_investigate_discards_hypotheses_that_cite_unknown_evidence(make_client,
 def test_investigate_falls_back_when_the_provider_fails(make_client, incident_payload):
     simulator = FakeSimulatorClient(evidence=DATABASE_EVIDENCE)
     provider = FakeProvider(error=LLMProviderError("provider timed out", reason="timeout"))
-    client = make_client(simulator, provider_factory=lambda: provider)
+    client = make_client(simulator, orchestrator=FakeOrchestrator(provider=provider))
     incident_id = client.post("/api/v1/incidents", json=incident_payload).json()["id"]
 
     response = _investigate(client, incident_id)

@@ -32,7 +32,7 @@ router = APIRouter(tags=["investigations"])
     response_model=InvestigationRead,
     summary="Run an investigation for an incident",
 )
-def investigate(
+async def investigate(
     incident_id: str,
     payload: InvestigateRequest | None = None,
     session: Session = Depends(get_db),
@@ -42,7 +42,7 @@ def investigate(
     """Collect evidence, analyse it and propose remediations."""
     incident = incident_service.get_or_raise(session, incident_id)
     scenario_id = payload.scenario_id if payload else None
-    report = investigation_service.run(session, incident, scenario_id)
+    report = await investigation_service.run(session, incident, scenario_id)
     session.commit()
     return report
 

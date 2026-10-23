@@ -129,6 +129,7 @@ export const api = {
     return request(`/api/v1/incidents/${encodeURIComponent(incidentId)}/investigate`, {
       method: 'POST',
       body: JSON.stringify(body),
+      timeout: 60000,
     });
   },
 

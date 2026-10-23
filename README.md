@@ -51,15 +51,27 @@ pipeline, `docs/api-contract.md` for the canonical HTTP contract and
 
 - Provider: **Gemini API** through the official `google-genai` SDK, used by the
   backend only. The API key never reaches the browser.
-- Model: `gemini-3.8-flash` by default, overridable with `GEMINI_MODEL`.
+- Model: `gemini-3.5-flash-lite` by default, overridable with `GEMINI_MODEL`.
+- Dynamic discovery: eligible Gemini models are discovered at runtime via
+  `client.models.list()`, cached with TTL `GEMINI_MODEL_DISCOVERY_TTL_SECONDS`,
+  and filtered for `generateContent` support. Structured-output capability is
+  inferred from the model ID family.
 - Structured output: JSON schema constrained output, validated with Pydantic.
+- Model fallback: the primary model is tried first; on retryable errors the
+  orchestrator tries discovered fallback models, bounded by
+  `GEMINI_MAX_FALLBACK_ATTEMPTS` and `GEMINI_FALLBACK_TIME_BUDGET_SECONDS`.
+  Configuration/auth errors (401/403) are not retried. When all models fail,
+  the deterministic analysis engine is used.
+- Zero-hypothesis guard: a valid response with no root-cause hypotheses (when
+  evidence was provided) is treated as a soft failure so another model can be
+  tried.
 - Evidence safety: every evidence id returned by the model is verified against
   the evidence actually collected for the incident. Unknown ids are removed and
   hypotheses without supporting evidence are discarded.
 - Confidence is a self-reported **estimate**, not a calibrated probability.
 - **Deterministic fallback:** the backend works with no API key and falls back
   to a rule-based analysis engine when the provider times out, is rate limited,
-  returns malformed output or is unavailable.
+  returns malformed output, is unavailable, or all eligible models fail.
 
 ## Safety
 
@@ -137,9 +149,12 @@ Full request and response schemas are in `docs/api-contract.md`.
 | `DATABASE_URL` | backend | `postgresql+psycopg://incidentiq:incidentiq@db:5432/incidentiq` | Database URL. |
 | `SIMULATOR_BASE_URL` | backend | `http://simulator:8001` | Simulator service URL. |
 | `GEMINI_API_KEY` | backend | unset | Gemini API key. Optional. |
-| `GEMINI_MODEL` | backend | `gemini-3.8-flash` | Gemini model id. |
+| `GEMINI_MODEL` | backend | `gemini-3.5-flash-lite` | Gemini model id. |
 | `LLM_ENABLED` | backend | `true` | Master switch for provider calls. |
 | `LLM_TIMEOUT_SECONDS` | backend | `45` | Provider timeout. |
+| `GEMINI_MODEL_DISCOVERY_TTL_SECONDS` | backend | `3600` | Discovery cache TTL (seconds). |
+| `GEMINI_MAX_FALLBACK_ATTEMPTS` | backend | `3` | Max Gemini models attempted before deterministic fallback. |
+| `GEMINI_FALLBACK_TIME_BUDGET_SECONDS` | backend | `30` | Time budget (seconds) for the fallback sequence. |
 | `API_KEY` | backend | unset | When set, `X-API-Key` is required on `/api/v1/**`. |
 | `CORS_ORIGINS` | backend | `http://localhost:5173` | Allowed browser origins. |
 | `VITE_API_BASE_URL` | frontend | `http://localhost:8000` | Backend URL used by the browser. The frontend appends `/api/v1/...` itself. |

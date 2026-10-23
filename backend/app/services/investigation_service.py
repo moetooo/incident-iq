@@ -4,8 +4,8 @@ The pipeline is deliberately a single linear function:
 
 1. move the incident to ``investigating``
 2. collect and persist evidence
-3. analyse the evidence with the LLM provider, or with the deterministic
-   fallback when the provider is unavailable or fails
+3. analyse the evidence with the LLM provider, trying fallback models
+   on failure, then the deterministic engine when all fail
 4. verify every cited evidence id against the collected evidence
 5. persist the report, the hypotheses and the remediation proposals
 6. move the incident to its next status
@@ -13,17 +13,18 @@ The pipeline is deliberately a single linear function:
 
 from __future__ import annotations
 
-from collections.abc import Callable
-
+from app.core.config import Settings
 from app.core.logging import get_logger
 from app.investigation.deterministic import DeterministicEngine
 from app.investigation.llm.base import (
     AnalysisRequest,
     EvidenceItem,
-    LLMProvider,
-    LLMProviderError,
+    GeneratedReport,
 )
-from app.investigation.llm.schemas import GeneratedReport
+from app.investigation.llm.model_fallback import (
+    FallbackResult,
+    GeminiFallbackOrchestrator,
+)
 from app.investigation.validation import verify_report
 from app.models.enums import IncidentStatus, RemediationStatus
 from app.models.incident import Incident
@@ -40,8 +41,6 @@ from app.services.evidence_service import EvidenceService
 
 logger = get_logger(__name__)
 
-ProviderFactory = Callable[[], LLMProvider | None]
-
 
 class InvestigationService:
     """Runs investigations for incidents."""
@@ -53,7 +52,8 @@ class InvestigationService:
         incident_repository: IncidentRepository,
         investigation_repository: InvestigationRepository,
         remediation_repository: RemediationRepository,
-        provider_factory: ProviderFactory,
+        fallback_orchestrator: GeminiFallbackOrchestrator | None,
+        settings: Settings,
         fallback_engine: DeterministicEngine | None = None,
         max_evidence_items: int = 40,
     ) -> None:
@@ -61,11 +61,12 @@ class InvestigationService:
         self.incident_repository = incident_repository
         self.investigation_repository = investigation_repository
         self.remediation_repository = remediation_repository
-        self.provider_factory = provider_factory
+        self.fallback_orchestrator = fallback_orchestrator
+        self._settings = settings
         self.fallback_engine = fallback_engine or DeterministicEngine()
         self.max_evidence_items = max_evidence_items
 
-    def run(
+    async def run(
         self,
         session,
         incident: Incident,
@@ -103,17 +104,41 @@ class InvestigationService:
             evidence=evidence_items,
         )
 
-        report, provider_name, model, llm_used = self._analyse(request, warnings)
+        if self.fallback_orchestrator is None:
+            warnings.append(
+                "No LLM provider is configured; the deterministic analysis engine was used."
+            )
+            report, provider_name, model, llm_used = await self._run_fallback_async(
+                request, warnings
+            )
+        else:
+            primary_model = self._settings.GEMINI_MODEL
+            result: FallbackResult = await self.fallback_orchestrator.analyze(
+                request, primary_model
+            )
+            report = result.report
+            provider_name = result.provider_name
+            model = result.model
+            llm_used = result.llm_used
+
+            for attempt in result.attempts:
+                if not attempt.success:
+                    next_step = (
+                        "trying next model"
+                        if attempt.attempt_number < len(result.attempts)
+                        else "falling back to deterministic"
+                    )
+                    warnings.append(
+                        f"Gemini model '{attempt.model}' attempt {attempt.attempt_number} "
+                        f"failed ({attempt.reason}); {next_step}."
+                    )
+            if result.fallback_used and not llm_used:
+                warnings.append(
+                    "All eligible Gemini models failed; the deterministic analysis engine was used."
+                )
 
         report, verification_warnings = verify_report(report, valid_evidence_ids)
         warnings.extend(verification_warnings)
-
-        if llm_used and not report.root_cause_hypotheses and evidence_items:
-            warnings.append(
-                "The provider output could not be verified against the collected evidence; "
-                "the deterministic analysis was used instead."
-            )
-            report, provider_name, model, llm_used = self._run_fallback(request, warnings)
 
         proposals = self._create_proposals(session, incident, report)
 
@@ -247,41 +272,7 @@ class InvestigationService:
             created_at=to_iso(investigation.created_at),
         )
 
-    def _analyse(
-        self, request: AnalysisRequest, warnings: list[str]
-    ) -> tuple[GeneratedReport, str, str | None, bool]:
-        """Run the provider when it is available, otherwise the fallback."""
-        provider: LLMProvider | None = None
-        try:
-            provider = self.provider_factory()
-        except Exception as exc:  # pragma: no cover - defensive
-            warnings.append(f"The analysis provider could not be created: {exc}")
-
-        if provider is None:
-            warnings.append(
-                "No LLM provider is configured; the deterministic analysis engine was used."
-            )
-            return self._run_fallback(request, warnings)
-
-        try:
-            report = provider.analyze(request)
-        except LLMProviderError as exc:
-            warnings.append(
-                f"The analysis provider failed ({exc.reason}); the deterministic analysis "
-                "engine was used."
-            )
-            return self._run_fallback(request, warnings)
-        except Exception as exc:  # pragma: no cover - defensive
-            warnings.append(
-                "The analysis provider raised an unexpected error; the deterministic "
-                "analysis engine was used."
-            )
-            logger.warning("provider_unexpected_error", extra={"error": str(exc)})
-            return self._run_fallback(request, warnings)
-
-        return report, provider.name, getattr(provider, "model", None), True
-
-    def _run_fallback(
+    async def _run_fallback_async(
         self, request: AnalysisRequest, warnings: list[str]
     ) -> tuple[GeneratedReport, str, None, bool]:
         """Run the deterministic engine."""

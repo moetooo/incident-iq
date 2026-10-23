@@ -94,7 +94,7 @@ Response `200`:
   "simulator": "unknown",
   "llm": {
     "provider": "gemini",
-    "model": "gemini-3.8-flash",
+    "model": "gemini-3.5-flash-lite",
     "configured": false
   }
 }

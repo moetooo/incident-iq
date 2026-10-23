@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from app.core.ids import fingerprint as make_fingerprint
@@ -13,6 +13,8 @@ from app.models.evidence import Evidence
 from app.models.incident import Incident
 from app.repositories.evidence_repository import EvidenceRepository
 from app.services.simulator_client import SimulatorClient
+
+UTC = timezone.utc
 
 logger = get_logger(__name__)
 

@@ -53,10 +53,15 @@ class Settings(BaseSettings):
 
     # LLM provider
     GEMINI_API_KEY: str | None = None
-    GEMINI_MODEL: str = "gemini-3.8-flash"
+    GEMINI_MODEL: str = "gemini-3.5-flash-lite"
     LLM_ENABLED: bool = True
     LLM_TIMEOUT_SECONDS: float = 45.0
     LLM_MAX_EVIDENCE_ITEMS: int = 40
+
+    # Gemini model discovery and fallback
+    GEMINI_MODEL_DISCOVERY_TTL_SECONDS: int = 3600
+    GEMINI_MAX_FALLBACK_ATTEMPTS: int = 3
+    GEMINI_FALLBACK_TIME_BUDGET_SECONDS: float = 30.0
 
     @field_validator("CORS_ORIGINS", mode="before")
     @classmethod

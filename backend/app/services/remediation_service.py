@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Any
 
 from app.core.errors import ConflictError
@@ -14,6 +14,8 @@ from app.remediation.allowlist import get_spec
 from app.repositories.incident_repository import IncidentRepository
 from app.repositories.remediation_repository import RemediationRepository
 from app.services.remediation_dispatcher import RemediationDispatcher
+
+UTC = timezone.utc
 
 logger = get_logger(__name__)
 

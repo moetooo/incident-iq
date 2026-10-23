@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
+from datetime import datetime, timezone
 from typing import Generic, TypeVar
 
 from pydantic import BaseModel
+
+UTC = timezone.utc
 
 T = TypeVar("T")
 
